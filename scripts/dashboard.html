@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏦 산업보안 멀티시그 시스템</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+        
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .status-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 15px;
+            flex: 1;
+            min-width: 150px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .status-card h3 { font-size: 0.8rem; color: #888; margin-bottom: 8px; }
+        .status-card .value { font-size: 1.3rem; font-weight: bold; }
+        .status-card .value.green { color: #00ff88; }
+        .status-card .value.red { color: #ff4757; }
+        .status-card .value.blue { color: #00d4ff; }
+        .status-card .value.yellow { color: #ffd93d; }
+        
+        /* 메인 3열 그리드 */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        @media (max-width: 1200px) { .main-grid { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 800px) { .main-grid { grid-template-columns: 1fr; } }
+        
+        /* 컬럼 - 세로로 패널들 배치 */
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .panel h2 {
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 4px; color: #888; font-size: 0.85rem; }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 0.9rem;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 8px;
+        }
+        
+        .btn-primary { background: linear-gradient(90deg, #00d4ff, #7b2cbf); color: #fff; }
+        .btn-success { background: linear-gradient(90deg, #00ff88, #00b894); color: #000; }
+        .btn-danger { background: linear-gradient(90deg, #ff4757, #ff6b81); color: #fff; }
+        .btn-warning { background: linear-gradient(90deg, #ffd93d, #ff9f43); color: #000; }
+        
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; margin-top: 0; }
+        
+        .log-box {
+            background: rgba(0,0,0,0.4);
+            border-radius: 8px;
+            padding: 12px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+        }
+        
+        .log-entry { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .log-entry.success { color: #00ff88; }
+        .log-entry.error { color: #ff4757; }
+        .log-entry.info { color: #00d4ff; }
+        .log-entry.warning { color: #ffd93d; }
+        
+        /* 목록 박스 */
+        .list-box { 
+            min-height: 350px;
+            max-height: 400px;
+            overflow-y: auto; 
+        }
+        
+        .list-item {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .list-item .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .list-item .item-id { font-weight: bold; color: #00d4ff; font-size: 0.9rem; }
+        
+        .list-item .item-status {
+            padding: 3px 8px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+        }
+        
+        .item-status.pending { background: #ffd93d; color: #000; }
+        .item-status.executable { background: #00ff88; color: #000; }
+        .item-status.executed { background: #888; color: #fff; }
+        .item-status.approved { background: #7b2cbf; color: #fff; }
+        .item-status.timelock { background: #ff9f43; color: #000; }
+        
+        .list-item .item-detail { font-size: 0.8rem; color: #aaa; }
+        
+        /* 타임락 카운트다운 스타일 */
+        .timelock-countdown {
+            background: linear-gradient(90deg, #ff9f43, #ff6b6b);
+            color: #000;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-top: 8px;
+            font-weight: bold;
+            text-align: center;
+            animation: pulse-timelock 1s infinite;
+        }
+        
+        @keyframes pulse-timelock {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .timelock-countdown .time {
+            font-size: 1.2rem;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .btn-group { display: flex; gap: 8px; margin-top: 8px; }
+        .btn-group .btn { flex: 1; margin-top: 0; }
+        
+        .connect-section { text-align: center; padding: 50px; }
+        
+        .pause-banner {
+            background: linear-gradient(90deg, #ff4757, #ff6b81);
+            color: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 15px;
+            display: none;
+            animation: pulse 2s infinite;
+        }
+        
+        .pause-banner.show { display: block; }
+        
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        
+        .owner-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            background: #7b2cbf;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            margin-left: 4px;
+        }
+        
+        .section-divider {
+            border: none;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            margin: 15px 0;
+        }
+
+        /* 빈 목록 안내 */
+        .empty-list {
+            color: #888;
+            text-align: center;
+            padding: 50px 20px;
+            font-size: 0.9rem;
+        }
+
+        /* NFT 관리 패널 - 하단 전체 너비 */
+        .bottom-full {
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏦 산업보안 이중 멀티시그 시스템</h1>
+        
+        <div class="pause-banner" id="pauseBanner">
+            🚨 비상정지 상태 - 모든 거래가 차단되었습니다
+        </div>
+        
+        <div id="connectSection" class="connect-section">
+            <h2>MetaMask 연결이 필요합니다</h2>
+            <p style="margin: 20px 0; color: #888;">Sepolia 테스트넷에 연결해주세요</p>
+            <button class="btn btn-primary" onclick="connectWallet()" style="width: auto; padding: 15px 40px;">
+                🦊 MetaMask 연결
+            </button>
+        </div>
+        
+        <div id="mainContent" style="display: none;">
+            <!-- 상태 바 -->
+            <div class="status-bar">
+                <div class="status-card">
+                    <h3>💰 금고 잔액</h3>
+                    <div class="value blue" id="vaultBalance">0.000 ETH</div>
+                </div>
+                <div class="status-card">
+                    <h3>👤 내 계정</h3>
+                    <div class="value" id="myAddress" style="font-size: 0.85rem;">-</div>
+                </div>
+                <div class="status-card">
+                    <h3>🔐 내 역할</h3>
+                    <div class="value green" id="myRole">-</div>
+                </div>
+                <div class="status-card">
+                    <h3>📋 거래</h3>
+                    <div class="value yellow" id="txCount">0건</div>
+                </div>
+                <div class="status-card">
+                    <h3>🎫 NFT</h3>
+                    <div class="value yellow" id="nftCount">0개</div>
+                </div>
+            </div>
+            
+            <!-- 메인 3열 그리드 -->
+            <div class="main-grid">
+                <!-- 1열: 금고 관리 + NFT 관리 -->
+                <div class="column">
+                    <div class="panel">
+                        <h2>💰 금고 관리</h2>
+                        
+                        <div class="form-group">
+                            <label>입금 금액 (ETH)</label>
+                            <input type="number" id="depositAmount" placeholder="0.001" step="0.0001" value="0.003">
+                        </div>
+                        <button class="btn btn-success" onclick="deposit()">입금하기</button>
+                        
+                        <hr class="section-divider">
+                        
+                        <h3 style="margin-bottom: 10px; font-size: 0.95rem;">📝 새 지출 제안</h3>
+                        <div class="form-group">
+                            <label>받는 주소</label>
+                            <input type="text" id="proposeTo" placeholder="0x..." value="0x0000000000000000000000000000000000000001">
+                        </div>
+                        <div class="form-group">
+                            <label>금액 (ETH)</label>
+                            <input type="number" id="proposeAmount" placeholder="0.0003" step="0.0001" value="0.0003">
+                        </div>
+                        <div class="form-group">
+                            <label>설명</label>
+                            <input type="text" id="proposeDesc" placeholder="사무용품 구매" value="사무용품 구매">
+                        </div>
+                        <button class="btn btn-primary" onclick="propose()">제안하기</button>
+                        
+                        <hr class="section-divider">
+                        
+                        <h3 style="margin-bottom: 10px; font-size: 0.95rem;">🚨 비상정지</h3>
+                        <div class="btn-group">
+                            <button class="btn btn-danger btn-sm" onclick="pauseContract()">🔴 정지</button>
+                            <button class="btn btn-success btn-sm" onclick="unpauseContract()">🟢 해제</button>
+                        </div>
+                    </div>
+                    
+                    <!-- NFT 변경권 관리 -->
+                    <div class="panel">
+                        <h2>🎫 NFT 변경권 관리</h2>
+                        <h3 style="margin-bottom: 10px; font-size: 0.9rem;">발행하기</h3>
+                        <div class="form-group">
+                            <label>변경 내용</label>
+                            <input type="text" id="ticketScope" placeholder="방화벽 규칙 변경" value="방화벽 규칙 변경">
+                        </div>
+                        <div class="form-group">
+                            <label>중요도</label>
+                            <select id="ticketSeverity">
+                                <option value="0">LOW (타임락 없음)</option>
+                                <option value="1" selected>MEDIUM (90초)</option>
+                                <option value="2">HIGH (120초)</option>
+                                <option value="3">CRITICAL (150초)</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-warning" onclick="mintTicket()">🎫 NFT 발행</button>
+                        
+                        <hr class="section-divider">
+                        
+                        <h3 style="margin-bottom: 10px; font-size: 0.9rem;">승인/실행</h3>
+                        <div class="form-group">
+                            <label>티켓 ID</label>
+                            <input type="number" id="ticketId" placeholder="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>실행 결과</label>
+                            <input type="text" id="ticketResult" placeholder="작업 완료" value="포트 8080 오픈 완료">
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-success" onclick="approveTicket()">✅ 승인</button>
+                            <button class="btn btn-primary" onclick="executeTicket()">🔥 실행</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 2열: 거래 목록 + 권한 관리 -->
+                <div class="column">
+                    <div class="panel">
+                        <h2>📋 거래 목록 
+                            <button class="btn btn-primary btn-sm" onclick="loadTransactions()" style="width: auto; margin-left: auto;">새로고침</button>
+                        </h2>
+                        <div class="list-box" id="txList">
+                            <div class="empty-list">거래 내역이 없습니다</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 권한 관리 -->
+                    <div class="panel">
+                        <h2>👑 권한 관리</h2>
+                        <p style="color: #888; font-size: 0.85rem; margin-bottom: 15px;">
+                            NFT 발행/승인 권한이 없을 때 사용<br>
+                            배포자(Admin)의 Private Key 필요
+                        </p>
+                        <div class="form-group">
+                            <label>권한 받을 주소</label>
+                            <input type="text" id="grantToAddress" placeholder="0x..." value="">
+                        </div>
+                        <div class="form-group">
+                            <label>배포자 Private Key</label>
+                            <input type="password" id="adminPrivateKey" placeholder="0x...">
+                        </div>
+                        <button class="btn btn-warning" onclick="grantRoles()">👑 권한 부여</button>
+                        <button class="btn btn-primary btn-sm" onclick="checkMyRoles()" style="margin-top: 8px;">🔍 내 권한 확인</button>
+                    </div>
+                </div>
+                
+                <!-- 3열: NFT 목록 + 실행 로그 -->
+                <div class="column">
+                    <div class="panel">
+                        <h2>🎫 NFT 목록
+                            <button class="btn btn-warning btn-sm" onclick="loadNFTs()" style="width: auto; margin-left: auto;">새로고침</button>
+                        </h2>
+                        <div class="list-box" id="nftList">
+                            <div class="empty-list">발행된 NFT가 없습니다</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 실행 로그 -->
+                    <div class="panel">
+                        <h2>📜 실행 로그</h2>
+                        <div class="log-box" id="logBox"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // ⚠️ 컨트랙트 주소
+        // ============================================s
+        const VAULT_ADDRESS = "0x1C44a6A6282e25dBc0F0dDF56Ec05B6f40D00eAc";
+        const TICKET_ADDRESS = "0x65108E60Abf82fd33Bd0293b31811b4D8E868e32";
+        const RPC_URL = "https://eth-sepolia.g.alchemy.com/v2/9XMSDnEKwdXBIR8WXXi8B";
+        // ============================================
+        
+        const VAULT_ABI = [
+            "function getBalance() view returns (uint256)",
+            "function paused() view returns (bool)",
+            "function roles(address) view returns (uint8)",
+            "function getOwners() view returns (address[])",
+            "function getTransactionCount() view returns (uint256)",
+            "function getTransaction(uint256) view returns (tuple(address to, uint256 value, address token, uint256 tokenAmount, uint8 level, string description, uint256 approvals, uint256 proposedAt, uint256 timelockUntil, bool executed, bool cancelled, address proposer))",
+            "function canExecute(uint256) view returns (bool, string)",
+            "function isApproved(uint256, address) view returns (bool)",
+            "function proposeETH(address, uint256, string) returns (uint256)",
+            "function approve(uint256)",
+            "function execute(uint256)",
+            "function pause()",
+            "function unpause()"
+        ];
+        
+        const TICKET_ABI = [
+            "function totalSupply() view returns (uint256)",
+            "function mintTicket(address, string, uint8) returns (uint256)",
+            "function approveTicket(uint256)",
+            "function executeTicket(uint256, string)",
+            "function getTicketInfo(uint256) view returns (tuple(string changeScope, uint8 severity, uint8 status, uint256 createdAt, uint256 expiresAt, uint256 timelockUntil, uint256 approvals, uint256 requiredApprovals, address requester, string executionResult))",
+            "function hasApproved(uint256, address) view returns (bool)",
+            "function isExecutable(uint256) view returns (bool, string)",
+            "function MINTER_ROLE() view returns (bytes32)",
+            "function DEFAULT_ADMIN_ROLE() view returns (bytes32)",
+            "function hasRole(bytes32, address) view returns (bool)",
+            "function grantRole(bytes32, address)"
+        ];
+        
+        let provider, signer, vault, ticket, myAddress;
+        let timelockIntervals = {};
+        
+        function log(message, type = 'info') {
+            const logBox = document.getElementById('logBox');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            logBox.insertBefore(entry, logBox.firstChild);
+        }
+        
+        function startTimelockCountdown(elementId, timelockUntil, onComplete) {
+            if (timelockIntervals[elementId]) {
+                clearInterval(timelockIntervals[elementId]);
+            }
+            
+            const updateCountdown = () => {
+                const now = Math.floor(Date.now() / 1000);
+                const remaining = timelockUntil - now;
+                
+                const element = document.getElementById(elementId);
+                if (!element) {
+                    clearInterval(timelockIntervals[elementId]);
+                    return;
+                }
+                
+                if (remaining <= 0) {
+                    clearInterval(timelockIntervals[elementId]);
+                    element.innerHTML = `<div class="timelock-countdown" style="background: linear-gradient(90deg, #00ff88, #00b894);">
+                        ✅ 타임락 해제! 실행 가능!
+                    </div>`;
+                    if (onComplete) onComplete();
+                    return;
+                }
+                
+                const mins = Math.floor(remaining / 60);
+                const secs = remaining % 60;
+                const timeStr = mins > 0 ? `${mins}분 ${secs}초` : `${secs}초`;
+                
+                element.innerHTML = `<div class="timelock-countdown">
+                    ⏱️ 타임락 대기 중: <span class="time">${timeStr}</span>
+                </div>`;
+            };
+            
+            updateCountdown();
+            timelockIntervals[elementId] = setInterval(updateCountdown, 1000);
+        }
+        
+        async function connectWallet() {
+            try {
+                if (!window.ethereum) {
+                    alert('MetaMask를 설치해주세요!');
+                    return;
+                }
+                
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                signer = provider.getSigner();
+                myAddress = await signer.getAddress();
+                
+                vault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, signer);
+                ticket = new ethers.Contract(TICKET_ADDRESS, TICKET_ABI, signer);
+                
+                document.getElementById('connectSection').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+                document.getElementById('grantToAddress').value = myAddress;
+                
+                log('✅ 지갑 연결됨: ' + myAddress.slice(0,6) + '...' + myAddress.slice(-4), 'success');
+                
+                await refreshStatus();
+                await loadTransactions();
+                await loadNFTs();
+                
+                window.ethereum.on('accountsChanged', () => location.reload());
+                
+            } catch (err) {
+                log('❌ 연결 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function checkMyRoles() {
+            try {
+                log('🔍 NFT 권한 확인 중...', 'info');
+                
+                const MINTER_ROLE = await ticket.MINTER_ROLE();
+                const ADMIN_ROLE = await ticket.DEFAULT_ADMIN_ROLE();
+                
+                const hasMinter = await ticket.hasRole(MINTER_ROLE, myAddress);
+                const hasAdmin = await ticket.hasRole(ADMIN_ROLE, myAddress);
+                
+                log(`MINTER: ${hasMinter ? '✅' : '❌'} | ADMIN: ${hasAdmin ? '✅' : '❌'}`, hasMinter && hasAdmin ? 'success' : 'warning');
+                
+            } catch (err) {
+                log('❌ 권한 확인 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function grantRoles() {
+            try {
+                const targetAddress = document.getElementById('grantToAddress').value.trim();
+                const adminKey = document.getElementById('adminPrivateKey').value.trim();
+                
+                if (!targetAddress || !adminKey) {
+                    alert('주소와 Private Key를 입력하세요!');
+                    return;
+                }
+                
+                log('⏳ 권한 부여 중...', 'info');
+                
+                const rpcProvider = new ethers.providers.JsonRpcProvider(RPC_URL);
+                const adminWallet = new ethers.Wallet(adminKey, rpcProvider);
+                const ticketWithAdmin = new ethers.Contract(TICKET_ADDRESS, TICKET_ABI, adminWallet);
+                
+                const MINTER_ROLE = await ticketWithAdmin.MINTER_ROLE();
+                const hasMinter = await ticketWithAdmin.hasRole(MINTER_ROLE, targetAddress);
+                
+                if (!hasMinter) {
+                    const tx1 = await ticketWithAdmin.grantRole(MINTER_ROLE, targetAddress);
+                    await tx1.wait();
+                    log('✅ MINTER 권한 부여!', 'success');
+                }
+                
+                const ADMIN_ROLE = await ticketWithAdmin.DEFAULT_ADMIN_ROLE();
+                const hasAdmin = await ticketWithAdmin.hasRole(ADMIN_ROLE, targetAddress);
+                
+                if (!hasAdmin) {
+                    const tx2 = await ticketWithAdmin.grantRole(ADMIN_ROLE, targetAddress);
+                    await tx2.wait();
+                    log('✅ ADMIN 권한 부여!', 'success');
+                }
+                
+                log('🎉 권한 부여 완료!', 'success');
+                document.getElementById('adminPrivateKey').value = '';
+                
+            } catch (err) {
+                log('❌ 권한 부여 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function refreshStatus() {
+            try {
+                const balance = await vault.getBalance();
+                document.getElementById('vaultBalance').textContent = ethers.utils.formatEther(balance) + ' ETH';
+                document.getElementById('myAddress').textContent = myAddress.slice(0,6) + '...' + myAddress.slice(-4);
+                
+                const role = await vault.roles(myAddress);
+                const roleNames = ['None', 'Auditor', 'Operator', 'Owner'];
+                document.getElementById('myRole').textContent = roleNames[role];
+                
+                const txCount = await vault.getTransactionCount();
+                document.getElementById('txCount').textContent = txCount.toString() + '건';
+                
+                try {
+                    const nftCount = await ticket.totalSupply();
+                    document.getElementById('nftCount').textContent = nftCount.toString() + '개';
+                } catch (e) {
+                    document.getElementById('nftCount').textContent = '0개';
+                }
+                
+                const paused = await vault.paused();
+                document.getElementById('pauseBanner').classList.toggle('show', paused);
+                
+            } catch (err) {
+                log('❌ 상태 조회 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function loadTransactions() {
+            try {
+                Object.keys(timelockIntervals).forEach(key => {
+                    if (key.startsWith('tx-')) clearInterval(timelockIntervals[key]);
+                });
+                
+                const txCount = await vault.getTransactionCount();
+                const txList = document.getElementById('txList');
+                
+                if (txCount == 0) {
+                    txList.innerHTML = '<div class="empty-list">거래 내역이 없습니다</div>';
+                    return;
+                }
+                
+                txList.innerHTML = '';
+                
+                for (let i = txCount - 1; i >= 0 && i >= txCount - 10; i--) {
+                    const tx = await vault.getTransaction(i);
+                    const [canExec, reason] = await vault.canExecute(i);
+                    const myApproved = await vault.isApproved(i, myAddress);
+                    
+                    const levelNames = ['L1', 'L2', 'L3'];
+                    const now = Math.floor(Date.now() / 1000);
+                    const timelockUntil = Number(tx.timelockUntil);
+                    // 타임락 조건: 2명 승인 완료 + timelockUntil 설정됨 + 아직 안 지남 + 실행 안 됨
+                    const hasTimelock = tx.approvals >= 2 && timelockUntil > 0 && timelockUntil > now && !tx.executed && !tx.cancelled;
+                    
+                    let status, statusClass;
+                    if (tx.executed) { status = '✅ 완료'; statusClass = 'executed'; }
+                    else if (tx.cancelled) { status = '❌ 취소'; statusClass = 'executed'; }
+                    else if (hasTimelock) { status = '⏱️ 타임락'; statusClass = 'timelock'; }
+                    else if (canExec) { status = '🟢 실행가능'; statusClass = 'executable'; }
+                    else { status = '🟡 대기중'; statusClass = 'pending'; }
+                    
+                    const item = document.createElement('div');
+                    item.className = 'list-item';
+                    
+                    item.innerHTML = `
+                        <div class="item-header">
+                            <span class="item-id">거래 #${i} (${levelNames[tx.level]})</span>
+                            <span class="item-status ${statusClass}">${status}</span>
+                        </div>
+                        <div class="item-detail">
+                            💰 ${ethers.utils.formatEther(tx.value)} ETH | 📝 ${tx.description}<br>
+                            ✅ 승인: ${tx.approvals}/2 ${myApproved ? '<span class="owner-badge">내가 승인함</span>' : ''}
+                        </div>
+                        ${hasTimelock ? `<div id="tx-timelock-${i}"></div>` : ''}
+                        ${!tx.executed && !tx.cancelled ? `
+                        <div class="btn-group">
+                            <button class="btn btn-success btn-sm" onclick="approveTx(${i})" ${myApproved ? 'disabled' : ''}>
+                                ${myApproved ? '승인완료' : '승인'}
+                            </button>
+                            <button class="btn btn-primary btn-sm" onclick="executeTx(${i})" ${!canExec ? 'disabled' : ''}>
+                                실행
+                            </button>
+                        </div>` : ''}
+                    `;
+                    txList.appendChild(item);
+                    
+                    if (hasTimelock) {
+                        startTimelockCountdown(`tx-timelock-${i}`, timelockUntil, () => loadTransactions());
+                    }
+                }
+                
+                log('📋 거래 목록 로드', 'info');
+                
+            } catch (err) {
+                log('❌ 거래 목록 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function loadNFTs() {
+            try {
+                Object.keys(timelockIntervals).forEach(key => {
+                    if (key.startsWith('nft-')) clearInterval(timelockIntervals[key]);
+                });
+                
+                const totalSupply = await ticket.totalSupply();
+                const nftList = document.getElementById('nftList');
+                
+                if (totalSupply == 0) {
+                    nftList.innerHTML = '<div class="empty-list">발행된 NFT가 없습니다</div>';
+                    return;
+                }
+                
+                nftList.innerHTML = '';
+                const severityNames = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+                const statusNames = ['대기중', '승인됨', '실행가능', '실행완료', '만료', '취소'];
+                
+                let hasActiveNFT = false;
+                
+                for (let tokenId = Number(totalSupply) - 1; tokenId >= 0 && tokenId >= Number(totalSupply) - 10; tokenId--) {
+                    try {
+                        const info = await ticket.getTicketInfo(tokenId);
+                        if (info.status >= 3) continue;
+                        
+                        hasActiveNFT = true;
+                        
+                        let myApproved = false, canExec = false;
+                        try {
+                            myApproved = await ticket.hasApproved(tokenId, myAddress);
+                            const result = await ticket.isExecutable(tokenId);
+                            canExec = result[0];
+                        } catch (e) {}
+                        
+                        const now = Math.floor(Date.now() / 1000);
+                        const timelockUntil = Number(info.timelockUntil);
+                        // 타임락 조건: 필요 승인 수 충족 + timelockUntil 설정됨 + 아직 안 지남
+                        const hasTimelock = info.approvals >= info.requiredApprovals && timelockUntil > 0 && timelockUntil > now;
+                        
+                        let statusClass = 'pending', statusText = statusNames[info.status];
+                        if (hasTimelock) { statusClass = 'timelock'; statusText = '⏱️ 타임락'; }
+                        else if (canExec) { statusClass = 'executable'; statusText = '🟢 실행가능'; }
+                        else if (info.status == 1) { statusClass = 'approved'; }
+                        
+                        const item = document.createElement('div');
+                        item.className = 'list-item';
+                        
+                        item.innerHTML = `
+                            <div class="item-header">
+                                <span class="item-id">NFT #${tokenId} (${severityNames[info.severity]})</span>
+                                <span class="item-status ${statusClass}">${statusText}</span>
+                            </div>
+                            <div class="item-detail">
+                                📝 ${info.changeScope}<br>
+                                ✅ 승인: ${info.approvals}/${info.requiredApprovals} ${myApproved ? '<span class="owner-badge">내가 승인함</span>' : ''}
+                            </div>
+                            ${hasTimelock ? `<div id="nft-timelock-${tokenId}"></div>` : ''}
+                            <div class="btn-group">
+                                <button class="btn btn-success btn-sm" onclick="approveTicketById(${tokenId})" ${myApproved ? 'disabled' : ''}>
+                                    ${myApproved ? '승인완료' : '승인'}
+                                </button>
+                                <button class="btn btn-primary btn-sm" onclick="executeTicketById(${tokenId})" ${!canExec ? 'disabled' : ''}>
+                                    실행
+                                </button>
+                            </div>
+                        `;
+                        nftList.appendChild(item);
+                        
+                        if (hasTimelock) {
+                            startTimelockCountdown(`nft-timelock-${tokenId}`, timelockUntil, () => loadNFTs());
+                        }
+                    } catch (e) {}
+                }
+                
+                if (!hasActiveNFT) {
+                    nftList.innerHTML = '<div class="empty-list">활성 NFT가 없습니다</div>';
+                }
+                
+                log('🎫 NFT 목록 로드', 'info');
+                
+            } catch (err) {
+                log('❌ NFT 목록 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function deposit() {
+            try {
+                const amount = document.getElementById('depositAmount').value;
+                if (!amount) return alert('금액 입력');
+                
+                log('⏳ 입금 중...', 'info');
+                const tx = await signer.sendTransaction({
+                    to: VAULT_ADDRESS,
+                    value: ethers.utils.parseEther(amount)
+                });
+                await tx.wait();
+                
+                log(`✅ 입금 완료! ${amount} ETH`, 'success');
+                await refreshStatus();
+            } catch (err) {
+                log('❌ 입금 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function propose() {
+            try {
+                const to = document.getElementById('proposeTo').value;
+                const amount = document.getElementById('proposeAmount').value;
+                const desc = document.getElementById('proposeDesc').value;
+                
+                if (!to || !amount || !desc) return alert('모든 필드 입력');
+                
+                const paused = await vault.paused();
+                if (paused) { log('🚨 비상정지 상태!', 'error'); return; }
+                
+                log('⏳ 제안 중...', 'info');
+                const tx = await vault.proposeETH(to, ethers.utils.parseEther(amount), desc);
+                await tx.wait();
+                
+                log(`✅ 제안 완료! ${amount} ETH`, 'success');
+                await refreshStatus();
+                await loadTransactions();
+            } catch (err) {
+                log('❌ 제안 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function approveTx(txId) {
+            try {
+                const paused = await vault.paused();
+                if (paused) { log('🚨 비상정지 상태!', 'error'); return; }
+                
+                log(`⏳ 거래 #${txId} 승인 중...`, 'info');
+                const tx = await vault.approve(txId);
+                await tx.wait();
+                
+                log(`✅ 거래 #${txId} 승인 완료!`, 'success');
+                await loadTransactions();
+            } catch (err) {
+                log('❌ 승인 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function executeTx(txId) {
+            try {
+                const paused = await vault.paused();
+                if (paused) { log('🚨 비상정지 상태!', 'error'); return; }
+                
+                const [canExec, reason] = await vault.canExecute(txId);
+                if (!canExec) { log(`❌ 실행 불가: ${reason}`, 'error'); return; }
+                
+                log(`⏳ 거래 #${txId} 실행 중...`, 'info');
+                const tx = await vault.execute(txId);
+                await tx.wait();
+                
+                log(`✅ 거래 #${txId} 실행 완료!`, 'success');
+                await refreshStatus();
+                await loadTransactions();
+            } catch (err) {
+                log('❌ 실행 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function pauseContract() {
+            try {
+                log('⏳ 비상정지 중...', 'warning');
+                const tx = await vault.pause();
+                await tx.wait();
+                log('🚨 비상정지 활성화!', 'warning');
+                await refreshStatus();
+            } catch (err) {
+                log('❌ 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function unpauseContract() {
+            try {
+                log('⏳ 해제 중...', 'info');
+                const tx = await vault.unpause();
+                await tx.wait();
+                log('✅ 비상정지 해제!', 'success');
+                await refreshStatus();
+            } catch (err) {
+                log('❌ 실패: ' + err.message, 'error');
+            }
+        }
+        
+        async function mintTicket() {
+            try {
+                const scope = document.getElementById('ticketScope').value;
+                const severity = document.getElementById('ticketSeverity').value;
+                if (!scope) return alert('변경 내용 입력');
+                
+                log('⏳ NFT 발행 중...', 'info');
+                const tx = await ticket.mintTicket(myAddress, scope, severity, { gasLimit: 500000 });
+                await tx.wait();
+                
+                log(`✅ NFT 발행 완료!`, 'success');
+                await refreshStatus();
+                await loadNFTs();
+            } catch (err) {
+                if (err.message.includes('missing role') || err.message.includes('AccessControl')) {
+                    log('❌ MINTER 권한 없음! 권한 부여 필요', 'error');
+                } else {
+                    log('❌ NFT 발행 실패: ' + err.message, 'error');
+                }
+            }
+        }
+        
+        async function approveTicket() {
+            const tokenId = document.getElementById('ticketId').value;
+            if (tokenId === '') return alert('티켓 ID 입력');
+            await approveTicketById(tokenId);
+        }
+        
+        async function approveTicketById(tokenId) {
+            try {
+                log(`⏳ NFT #${tokenId} 승인 중...`, 'info');
+                const tx = await ticket.approveTicket(tokenId, { gasLimit: 300000 });
+                await tx.wait();
+                log(`✅ NFT #${tokenId} 승인 완료!`, 'success');
+                await loadNFTs();
+            } catch (err) {
+                if (err.message.includes('Already approved')) {
+                    log('❌ 이미 승인함', 'error');
+                } else {
+                    log('❌ NFT 승인 실패: ' + err.message, 'error');
+                }
+            }
+        }
+        
+        async function executeTicket() {
+            const tokenId = document.getElementById('ticketId').value;
+            if (tokenId === '') return alert('티켓 ID 입력');
+            await executeTicketById(tokenId);
+        }
+        
+        async function executeTicketById(tokenId) {
+            try {
+                const result = document.getElementById('ticketResult').value || '작업 완료';
+                
+                const [canExec, reason] = await ticket.isExecutable(tokenId);
+                if (!canExec) { log(`❌ 실행 불가: ${reason}`, 'error'); return; }
+                
+                log(`⏳ NFT #${tokenId} 실행 중...`, 'info');
+                const tx = await ticket.executeTicket(tokenId, result, { gasLimit: 300000 });
+                await tx.wait();
+                
+                log(`🔥 NFT #${tokenId} 실행 & 소각!`, 'success');
+                await refreshStatus();
+                await loadNFTs();
+            } catch (err) {
+                log('❌ NFT 실행 실패: ' + err.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
